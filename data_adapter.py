@@ -123,6 +123,10 @@ def merge_eeg_data(dm, subject_nr):
     event_idx = event_idx[sdm[sdm.condition == 'experiment']]
     sdm = sdm.condition == 'experiment'
     assert len(sdm) == event_idx.shape[0]
+    # add trial numbers
+    sdm.trial_number = 0
+    trials = list(range(1, len(sdm) + 1))
+    sdm.trial_number = trials
     # Add an event for the stim. We use the fixation duration and onset for
     # this, rather than the original stimulus trigger, which again was a bit
     # unreliable.

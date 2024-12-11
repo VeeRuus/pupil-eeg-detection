@@ -22,6 +22,24 @@ EPOCHS_KWARGS = dict(tmin=-1, tmax=.1, picks='eeg',
                      preload=True, reject_by_annotation=False,
                      baseline=None)
 
+IAF_DICT = {1 : 9.56, 
+            2 : 8.37, 
+            3 : 10.36,
+            4 : 11.15,
+            5 : 12.75,
+            6 : 9.96,
+            7 : 8.37,
+            8 : 9.96, 
+            9 : 9.16, 
+            10 : 8.76,
+            12 : 9.56,
+            13 : 9.56,
+            15 : 9.96, 
+            16 : 8.76,
+            17 : 9.56,
+            19 : 10.76}
+
+montage = mne.channels.make_standard_montage('biosemi64')
 
 def subject_data(subject_nr):
     """Performs preprocessing for a single participant. This involves basic
@@ -39,23 +57,47 @@ def subject_data(subject_nr):
     """
     print(f'Processing subject {subject_nr}')
     raw, events, metadata = read_subject(subject_nr)
-    # First get the correct epoch (-2.5 until .5 around the stimulus)
-    fix_epoch = mne.Epochs(raw, eet.epoch_trigger(events, STIM_TRIGGER), tmin=-2.5, tmax=.5,
+    raw.set_channel_types({'EXG3':'eog'})
+    raw.set_montage(montage, match_case=False)
+    if subject_nr == 6:
+        raw.set_eeg_reference(ref_channels = "average")
+    # First get the correct epoch (-2.5 until stim onset (t=0))
+    # use eet.autoreject_epochs() instead. You can use it the same way.
+    fix_epoch = eet.autoreject_epochs(raw, eet.epoch_trigger(events, STIM_TRIGGER), tmin=-2.5, tmax=0,
                            metadata=metadata, picks=CHANNELS)
+    # fix_epoch = mne.Epochs(raw, eet.epoch_trigger(events, STIM_TRIGGER), tmin=-2.5, tmax=0,
+    #                        metadata=metadata, picks=CHANNELS)
+    # tfr first over full frequencies and then the individual alpha frequency
     fix_tfr = tfr_morlet(fix_epoch, freqs=FULL_FREQS, n_cycles=4, n_jobs=-1,
                              return_itc=False, use_fft=True, average=False)
-    fix_tfr.crop(-2, 0) # for plotting etc use -1,0
+    iaf_value = IAF_DICT.get(subject_nr, None)
+    iaf_range = [iaf_value - 1, iaf_value + 1]
+    iaf_tfr = tfr_morlet(fix_epoch, freqs=iaf_range, n_cycles=4, n_jobs=-1,
+                             return_itc=False, use_fft=True, average=False) 
+    fix_tfr.crop(-2, -0.5) # to filter out edge artefacts
+    iaf_tfr.crop(-2, -0.5) # to filter out edge artefacts
     dm = cnv.from_pandas(metadata)
     dm.tfr = cnv.from_mne_tfr(fix_tfr, ch_avg=True)
+    dm.tfr_iaf = cnv.from_mne_tfr(iaf_tfr, ch_avg=True)
     # We need to use this special z-scoring function to z-score each frequency
     # band separately to take into account 1/F power differences
     dm.tfr = z_by_freq(dm.tfr)
+    dm.tfr_iaf = z_by_freq(dm.tfr_iaf)
     # Get pupil size
     pupil = eet.PupilEpochs(raw, eet.epoch_trigger(events, STIM_TRIGGER), tmin=-2.5,
                             tmax=.5, metadata=metadata, baseline=None)
     dm.pupil = cnv.from_mne_epochs(pupil, ch_avg=True)
-    #dm.pupil_mm = (0.00714*dm.pupil)**0.5 #not sure if this is an appropriate conversion for the specific lab
     dm.pupil_z = ops.z(dm.pupil)
+    # Get the eyetracking data
+    # raw.set_channel_types({'GazeX':'eeg'})
+    gaze_x = mne.Epochs(raw, eet.epoch_trigger(events, STIM_TRIGGER), tmin=-2.5, tmax=0,
+                        metadata=metadata, picks=['GazeX'])
+    dm.gaze_x = cnv.from_mne_epochs(gaze_x, ch_avg=True)
+    gaze_y = mne.Epochs(raw, eet.epoch_trigger(events, STIM_TRIGGER), tmin=-2.5, tmax=0,
+                        metadata=metadata, picks=['GazeY'])
+    dm.gaze_y = cnv.from_mne_epochs(gaze_y, ch_avg=True)
+    
+
     return dm
 
 
@@ -70,7 +112,7 @@ def get_merged_data():
     """
     # First call this once to have it memoized
     get_eyetracking_data()
-    return fnc.stack_multiprocess(subject_data, SUBJECTS, processes=20)
+    return fnc.stack_multiprocess(subject_data, SUBJECTS, processes=10)
 
 
 def z_by_freq(col):
