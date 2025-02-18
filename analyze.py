@@ -139,110 +139,111 @@ Finding individual alpha peaks in pre-stimulus epochs
 """
 
 # plots to visually inspect channel power in the fix epoch
-for subject in SUBJECTS:
-    raw, events, metadata = read_subject(subject)
-    fix_epoch = mne.Epochs(raw, eet.epoch_trigger(events, STIM_TRIGGER), tmin=-2.5, tmax=0,
-                           metadata=metadata, picks=CHANNELS)
-    fix_epoch.compute_psd(fmin=8,fmax=13).plot()
+# for subject in SUBJECTS:
+#     raw, events, metadata = read_subject(subject)
+#     fix_epoch = mne.Epochs(raw, eet.epoch_trigger(events, STIM_TRIGGER), tmin=-2.5, tmax=0,
+#                            metadata=metadata, picks=CHANNELS)
+#     fix_epoch.compute_psd(fmin=8,fmax=13).plot()
 
-# Defining a function to retrieve channel with max power and the max freq in that channel
-def find_iaf(subject_id, epochs, channels):
-    """
-    Find the individual alpha frequency (IAF) for a given subject.
+# # Defining a function to retrieve channel with max power and the max freq in that channel
+# def find_iaf(subject_id, epochs, channels):
+#     """
+#     Find the individual alpha frequency (IAF) for a given subject.
 
-    Parameters:
-    - subject_id (int): The subject number/id.
-    - epochs (mne.Epochs): The MNE epochs object containing the data.
-    - channels (list): List of channel names.
+#     Parameters:
+#     - subject_id (int): The subject number/id.
+#     - epochs (mne.Epochs): The MNE epochs object containing the data.
+#     - channels (list): List of channel names.
 
-    Returns:
-    - max_power_channel_name (str): The name of the channel with the highest power.
-    - max_power_frequency (float): The frequency with the highest power in the selected channel.
-    """
+#     Returns:
+#     - max_power_channel_name (str): The name of the channel with the highest power.
+#     - max_power_frequency (float): The frequency with the highest power in the selected channel.
+#     """
 
-    # Compute the PSD in the specified frequency range
-    psd = epochs.compute_psd(fmin=8, fmax=13, picks=channels) 
-    epoch_spectrum = psd.get_data()  # Get PSD in a numpy array of shape epochs x channels x frequencies
+#     # Compute the PSD in the specified frequency range
+#     psd = epochs.compute_psd(fmin=8, fmax=13, picks=channels) 
+#     epoch_spectrum = psd.get_data()  # Get PSD in a numpy array of shape epochs x channels x frequencies
 
-    # Step 1: Average over epochs
-    epochs_avg = np.mean(epoch_spectrum, axis=0)  # Result is of shape (channels, frequencies)
+#     # Step 1: Average over epochs
+#     epochs_avg = np.mean(epoch_spectrum, axis=0)  # Result is of shape (channels, frequencies)
 
-    # Step 2: Find the channel with maximum overall power by summing over frequency dimension
-    avg_power_ch = np.sum(epochs_avg, axis=1)
-    max_power_channel = np.argmax(avg_power_ch)  # Index of the channel with highest power
+#     # Step 2: Find the channel with maximum overall power by summing over frequency dimension
+#     avg_power_ch = np.sum(epochs_avg, axis=1)
+#     max_power_channel = np.argmax(avg_power_ch)  # Index of the channel with highest power
 
-    # Find which frequency in this channel has max power
-    channel_of_interest = epochs_avg[max_power_channel]  # This is of shape (frequencies,)
-    max_power_frequency_idx = np.argmax(channel_of_interest)  # Index of the frequency with highest power
+#     # Find which frequency in this channel has max power
+#     channel_of_interest = epochs_avg[max_power_channel]  # This is of shape (frequencies,)
+#     max_power_frequency_idx = np.argmax(channel_of_interest)  # Index of the frequency with highest power
 
-    # Retrieve the name of the channel and the frequency value
-    max_power_channel_name = channels[max_power_channel]
-    max_power_frequency = psd.freqs[max_power_frequency_idx]
+#     # Retrieve the name of the channel and the frequency value
+#     max_power_channel_name = channels[max_power_channel]
+#     max_power_frequency = psd.freqs[max_power_frequency_idx]
 
-    return max_power_channel_name, max_power_frequency
+#     return max_power_channel_name, max_power_frequency
 
-# Loop over subjects and find IAF first in all trials (pre-stim) and then for verification in odd and even trials
-subject_nr = []
-iaf_ch = []
-iaf_freq = []
-odd_ch = []
-odd_freq = []
-even_ch = []
-even_freq = []
+# # Loop over subjects and find IAF first in all trials (pre-stim) and then for verification in odd and even trials
+# subject_nr = []
+# iaf_ch = []
+# iaf_freq = []
+# odd_ch = []
+# odd_freq = []
+# even_ch = []
+# even_freq = []
 
-for subject in SUBJECTS:
-    raw, events, metadata = read_subject(subject) # get raw data
-    if subject == 6:
-        raw.set_eeg_reference(ref_channels = "average") # subject 6 has bad mastoids so using an average reference instead
-    fix_epoch = mne.Epochs(raw, eet.epoch_trigger(events, STIM_TRIGGER), tmin=-2.5, tmax=0,metadata=metadata, picks=CHANNELS) 
-    # splitting event data and metadata into odd and even trials
-    even_events = np.array([events[0][i:i+2] for i in range(0, len(events[0]), 4)]).reshape(-1, 3)
-    even_metadata = metadata[0::2]
+# for subject in SUBJECTS:
+#     raw, events, metadata = read_subject(subject) # get raw data
+#     if subject == 6:
+#         raw.set_eeg_reference(ref_channels = "average") # subject 6 has bad mastoids so using an average reference instead
+#     fix_epoch = mne.Epochs(raw, eet.epoch_trigger(events, STIM_TRIGGER), tmin=-2.5, tmax=0,metadata=metadata, picks=CHANNELS) 
+#     # splitting event data and metadata into odd and even trials
+#     even_events = np.array([events[0][i:i+2] for i in range(0, len(events[0]), 4)]).reshape(-1, 3)
+#     even_metadata = metadata[0::2]
     
-    odd_events = np.array([events[0][i:i+2] for i in range(2, len(events[0]), 4)]).reshape(-1, 3)
-    odd_metadata = metadata[1::2]
-    # epoching split data
-    odd_epoch = mne.Epochs(raw, eet.epoch_trigger(odd_events, STIM_TRIGGER), tmin=-2.5, tmax=0,metadata=odd_metadata, picks=CHANNELS) 
-    even_epoch = mne.Epochs(raw, eet.epoch_trigger(even_events, STIM_TRIGGER), tmin=-2.5, tmax=0,metadata=even_metadata, picks=CHANNELS) 
+#     odd_events = np.array([events[0][i:i+2] for i in range(2, len(events[0]), 4)]).reshape(-1, 3)
+#     odd_metadata = metadata[1::2]
+#     # epoching split data
+#     odd_epoch = mne.Epochs(raw, eet.epoch_trigger(odd_events, STIM_TRIGGER), tmin=-2.5, tmax=0,metadata=odd_metadata, picks=CHANNELS) 
+#     even_epoch = mne.Epochs(raw, eet.epoch_trigger(even_events, STIM_TRIGGER), tmin=-2.5, tmax=0,metadata=even_metadata, picks=CHANNELS) 
     
-    channel, frequency = find_iaf(subject, fix_epoch, CHANNELS)
-    odd_channel, odd_frequency = find_iaf(subject, odd_epoch, CHANNELS)
-    even_channel, even_frequency = find_iaf(subject, even_epoch, CHANNELS)
+#     channel, frequency = find_iaf(subject, fix_epoch, CHANNELS)
+#     odd_channel, odd_frequency = find_iaf(subject, odd_epoch, CHANNELS)
+#     even_channel, even_frequency = find_iaf(subject, even_epoch, CHANNELS)
     
-    subject_nr.append(subject)
-    iaf_ch.append(channel)
-    iaf_freq.append(frequency)
-    odd_ch.append(odd_channel)
-    odd_freq.append(odd_frequency)
-    even_ch.append(even_channel)
-    even_freq.append(even_frequency)
+#     subject_nr.append(subject)
+#     iaf_ch.append(channel)
+#     iaf_freq.append(frequency)
+#     odd_ch.append(odd_channel)
+#     odd_freq.append(odd_frequency)
+#     even_ch.append(even_channel)
+#     even_freq.append(even_frequency)
 
-iaf_dm = DataMatrix(length=len(SUBJECTS))
-iaf_dm.subject = subject_nr
-iaf_dm.channel = iaf_ch
-iaf_dm.frequency = iaf_freq
-iaf_dm.odd_channel = odd_ch
-iaf_dm.odd_frequency = odd_freq
-iaf_dm.even_channel = even_ch
-iaf_dm.even_frequency = even_freq
+# iaf_dm = DataMatrix(length=len(SUBJECTS))
+# iaf_dm.subject = subject_nr
+# iaf_dm.channel = iaf_ch
+# iaf_dm.frequency = iaf_freq
+# iaf_dm.odd_channel = odd_ch
+# iaf_dm.odd_frequency = odd_freq
+# iaf_dm.even_channel = even_ch
+# iaf_dm.even_frequency = even_freq
 
-io.writetxt(iaf_dm, 'individual_alpha_frequency.csv')
+# io.writetxt(iaf_dm, 'individual_alpha_frequency.csv')
 
 
 """
-Visualize overall power
+Visualize overall power (pre-stim)
 """
 
 plt.imshow(dm.crop_tfr[...], aspect='auto')
 plt.yticks(range(dm.crop_tfr.shape[1]), FULL_FREQS)
 plt.colorbar()
-tick_positions = np.linspace(0, 99, 5)
-tick_labels = np.arange(-1.5, -0.25, 0.25)
-plt.xticks(ticks=tick_positions, labels=tick_labels)
+# tick_positions = np.linspace(0, 99, 5)
+# tick_labels = np.arange(-1.5, -0.25, 0.25)
+# plt.xticks(ticks=tick_positions, labels=tick_labels)
 plt.xlabel('Time relative to stim onset (s)')
 plt.ylabel('Frequency (Hz)')
 plt.title('Power in Pre-Stimulus Interval')
-plt.savefig('power-spectrum.png', dpi=300)
+plt.show()
+# plt.savefig('power-spectrum.png', dpi=300)
 
 
 """
@@ -252,6 +253,13 @@ selected frequencies from the full spectrum
 dm.theta = dm.crop_tfr[:, :4][:, ...]
 dm.alpha = dm.crop_tfr[:, 4:8][:, ...]
 dm.beta = dm.crop_tfr[:, 8:][:, ...]
+
+"""
+Average over channels and get mean power based on PSD
+"""
+dm.mean_theta_power = srs.reduce(dm.theta_power[:,:])
+dm.mean_beta_power = srs.reduce(dm.beta_power[:,:])
+dm.mean_iaf_power = srs.reduce(dm.iaf_power[:,:])
 
 """
 Extract mean power in individual alpha frequency
@@ -307,20 +315,38 @@ dm.mean_iaf = srs.reduce(dm.crop_iaf[:,:])
 # for i, bdm in enumerate(ops.bin_split(dm.mean_beta, bins=BINS)):
 #     dm.bin_beta[bdm] = i
 
+
+"""
+Make dm for analysis
+"""
+
 valid_dm = ((dm.mean_pupil_z != np.nan) &
             (dm.mean_alpha != np.nan) &
             (dm.mean_beta != np.nan) &
             (dm.mean_theta != np.nan) &
-            (dm.mean_iaf != np.nan))
+            (dm.mean_iaf != np.nan) &
+            (dm.mean_iaf_power != np.nan) &
+            (dm.mean_beta_power != np.nan) &
+            (dm.mean_theta_power != np.nan))
 
 
 for subject_nr, sdm in ops.split(valid_dm.subject_nr):
     print(f'subject {subject_nr}: {len(sdm)} trials')
+    
+"""
+Check correlation PSD and TFR
+"""
+from scipy.stats import pearsonr   
+
+for subject_nr, sdm in ops.split(valid_dm.subject_nr):
+    print(f'theta correlation of subject {subject_nr}: {pearsonr(sdm.mean_theta, sdm.mean_theta_power)}')
+    print(f'alpha correlation of subject {subject_nr}: {pearsonr(sdm.mean_iaf, sdm.mean_iaf_power)}')
+    print(f'beta correlation of subject {subject_nr}: {pearsonr(sdm.mean_beta, sdm.mean_beta_power)}')
 
 """
 Write data to disk
 """
-io.writetxt(valid_dm[valid_dm.correct, valid_dm.mean_alpha, valid_dm.mean_theta, valid_dm.mean_beta, valid_dm.subject_nr, valid_dm.mean_iaf, dm.response, dm.mean_pupil_z, dm.trialid], 'data-clean.csv', delimiter=',')
+io.writetxt(valid_dm[valid_dm.correct, valid_dm.mean_iaf_power, valid_dm.mean_theta_power, valid_dm.mean_beta_power, valid_dm.subject_nr, dm.response, dm.mean_pupil_z, dm.trialid], 'data-clean-R2.csv', delimiter=',')
 
 """
 Below some initial visualizations: these are not (necessarily) included in the manuscript 
